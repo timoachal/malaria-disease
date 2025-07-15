@@ -96,21 +96,28 @@ st.markdown("""
 @st.cache_resource
 def load_model():
     try:
-        # Try loading the original joblib model
+        # Load the model — which is a Pipeline
         model = joblib.load('malaria_complete_model.joblib')
-        
-        # Try to extract Booster and save in JSON format
-        booster = model.get_booster()
-        booster.save_model('malaria_model.json')
 
-        # Re-load Booster using new format
-        booster = xgb.Booster()
-        booster.load_model('malaria_model.json')
+        # If it's a pipeline and has a 'classifier' step
+        if isinstance(model, Pipeline) and 'classifier' in model.named_steps:
+            old_classifier = model.named_steps['classifier']
 
-        # Reconstruct the XGBClassifier and assign Booster
-        model = XGBClassifier()
-        model._Booster = booster
-        model._le = None  # Optional: suppress label encoder warnings
+            # Extract the booster and save in portable format
+            booster = old_classifier.get_booster()
+            booster.save_model('malaria_model.json')
+
+            # Reload the booster with the current version of XGBoost
+            booster = xgb.Booster()
+            booster.load_model('malaria_model.json')
+
+            # Create a new classifier and attach the booster
+            new_classifier = XGBClassifier()
+            new_classifier._Booster = booster
+            new_classifier._le = None  # Avoid label encoder issues
+
+            # Replace old classifier in the pipeline
+            model.named_steps['classifier'] = new_classifier
 
         return model
 
