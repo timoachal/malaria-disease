@@ -6,6 +6,9 @@ from sklearn.pipeline import Pipeline
 from PIL import Image
 import plotly.express as px
 import plotly.graph_objects as go
+import xgboost as xgb
+from xgboost import XGBClassifier
+import os
 
 # Page configuration
 st.set_page_config(
@@ -93,8 +96,24 @@ st.markdown("""
 @st.cache_resource
 def load_model():
     try:
+        # Try loading the original joblib model
         model = joblib.load('malaria_complete_model.joblib')
+        
+        # Try to extract Booster and save in JSON format
+        booster = model.get_booster()
+        booster.save_model('malaria_model.json')
+
+        # Re-load Booster using new format
+        booster = xgb.Booster()
+        booster.load_model('malaria_model.json')
+
+        # Reconstruct the XGBClassifier and assign Booster
+        model = XGBClassifier()
+        model._Booster = booster
+        model._le = None  # Optional: suppress label encoder warnings
+
         return model
+
     except Exception as e:
         st.error(f"Error loading model: {e}")
         return None
